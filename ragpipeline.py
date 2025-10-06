@@ -499,7 +499,7 @@ class ConversationalRAGChain:
             self.llm = ChatGoogleGenerativeAI(
                 model="gemini-2.5-pro",
                 temperature=0.3, 
-                google_api_key="")
+                google_api_key="AIzaSyDLe5OQ7_7iplT5EHrreg7MKfDiQ2Bl0Ww")
         except:
             # Fallback to HuggingFace
             from transformers import pipeline
