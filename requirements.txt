@@ -1,0 +1,100 @@
+# ============================
+
+# Core Frameworks
+
+# ============================
+
+
+fastapi
+uvicorn[standard]
+werkzeug
+pydantic
+python-multipart
+python-dotenv==1.0.0
+requests==2.31.0
+
+# ============================
+
+# Frontend Options
+
+# ============================
+
+streamlit
+gradio
+
+# ============================
+
+# LangChain & LangGraph
+
+# ============================
+
+langchain
+langchain-core
+langchain-community
+langchain-openai
+langchain-huggingface
+langgraph
+langchain-google-genai
+
+# ============================
+
+# Document Processing
+
+# ============================
+
+pypdf
+PyPDF2
+docx2txt
+unstructured
+tabulate
+pdfplumber
+python-magic-bin==0.4.14
+
+# ============================
+
+# Vector Stores
+
+# ============================
+
+chromadb
+
+# pinecone-client==3.0.0   # Uncomment if you plan to use Pinecone
+
+# ============================
+
+# Embeddings & Models
+
+# ============================
+
+openai
+sentence-transformers
+transformers
+torch
+
+# ============================
+
+# Retrieval & Re-ranking
+
+# ============================
+
+rank-bm25
+
+# ============================
+
+# Data Processing
+
+# ============================
+
+pandas
+numpy
+
+# ============================
+
+# Google Integration
+
+# ============================
+
+gspread
+google-auth
+google-auth-oauthlib
+google-auth-httplib2

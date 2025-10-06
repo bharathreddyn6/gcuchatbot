@@ -1,0 +1,16 @@
+Branch,Specialization,Description,Career Opportunities,Industry Demand,Starting From Year,Key Subjects
+CSE,Cybersecurity,Focus on network security ethical hacking and cyber defense,Security Analyst Penetration Tester SOC Analyst,Very High,2nd Year,Cryptography Network Security Ethical Hacking
+CSE,AI & Machine Learning,Study of artificial intelligence machine learning and deep learning,ML Engineer AI Researcher Data Scientist,Very High,2nd Year,Machine Learning Deep Learning NLP Computer Vision
+CSE,Data Science,Analysis of big data statistical modeling and business intelligence,Data Analyst Business Analyst Data Engineer,Very High,2nd Year,Big Data Analytics Statistics Python R Programming
+CSE,IoT,Internet of Things embedded systems and smart devices,IoT Developer Embedded Engineer Smart City Expert,High,2nd Year,Sensor Networks Embedded Systems IoT Protocols
+CSE,Blockchain Technology,Distributed ledger technology cryptocurrency and smart contracts,Blockchain Developer Crypto Analyst Smart Contract Developer,High,3rd Year,Blockchain Fundamentals Cryptocurrency Smart Contracts
+CSE,Cloud Computing,Cloud infrastructure services and deployment models,Cloud Architect DevOps Engineer Cloud Consultant,Very High,2nd Year,AWS Azure Cloud Architecture Microservices
+ECE,VLSI Design,Very Large Scale Integration circuit design and fabrication,VLSI Engineer Chip Designer Verification Engineer,High,2nd Year,Digital Design CMOS VLSI System Verilog
+ECE,Embedded Systems,Microcontroller programming and embedded software,Embedded Developer Firmware Engineer IoT Engineer,High,2nd Year,Microcontrollers ARM RTOS Embedded C
+ECE,Communication Systems,Wireless communication optical fiber and satellite systems,Telecom Engineer RF Engineer Network Engineer,Medium,2nd Year,Digital Communication Wireless Networks Antenna Theory
+Mechanical,Robotics & Automation,Industrial robots automated systems and control,Robotics Engineer Automation Engineer Control Systems Engineer,High,2nd Year,Robotics Industrial Automation PLC Programming
+Mechanical,Automotive Engineering,Vehicle design manufacturing and electric vehicles,Automobile Engineer EV Designer Automotive Analyst,Very High,2nd Year,Automobile Engineering EV Technology Vehicle Dynamics
+Civil,Structural Engineering,Building design structural analysis and earthquake engineering,Structural Engineer Design Consultant Site Engineer,High,2nd Year,Structural Analysis Design of Structures Earthquake Engineering
+EEE,Power Systems,Electrical grids power generation and distribution,Power Engineer Grid Engineer Electrical Consultant,High,2nd Year,Power Systems Power Electronics Grid Integration
+EEE,Renewable Energy,Solar wind and green energy technologies,Renewable Energy Engineer Solar Consultant Green Energy Analyst,Very High,2nd Year,Solar Energy Wind Energy Energy Storage
+IT,Software Engineering,Software development lifecycle testing and project management,Software Engineer Developer Tech Lead,Very High,2nd Year,Software Engineering Agile Testing DevOps

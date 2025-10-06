@@ -1,0 +1,9 @@
+Program,Entry Type,Minimum Marks,Required Subjects,Entrance Exam,Additional Requirements,Age Limit,Category Relaxation
+BTech,Direct Entry,60%,Physics Chemistry Maths,State Entrance or JEE Main,Valid scorecard,No limit,5% relaxation for SC/ST
+BTech,Lateral Entry,50%,Diploma in relevant branch,ECET or Institute Test,3 years diploma with minimum 50%,No limit,5% relaxation for SC/ST
+BTech,Management Quota,55%,Physics Chemistry Maths,Not required,Direct admission through college,No limit,No relaxation
+MTech,Postgraduate Entry,60% in BTech,Relevant UG degree,GATE,Valid GATE score preferred,30 years,5% relaxation for SC/ST
+MTech,Sponsored Category,55% in BTech,Relevant UG degree,Not required,Sponsorship letter from employer,35 years,Not applicable
+MBA,Postgraduate Entry,50% in graduation,Any degree,CAT MAT CMAT,Valid scorecard required,28 years,5% relaxation for SC/ST
+MCA,Postgraduate Entry,50% in graduation,Any degree with Maths,NIMCET,Maths in 10+2 or graduation,30 years,5% relaxation for SC/ST
+PhD,Research,60% in PG,Relevant PG degree,Entrance Test Interview,Research proposal required,40 years,5% relaxation for SC/ST
