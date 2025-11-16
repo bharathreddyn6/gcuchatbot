@@ -1,0 +1,13 @@
+Entry Type,Step Number,Step Name,Description,Timeline,Documents Required,Fees,Contact
+Direct Entry,1,Entrance Exam,Appear for State Entrance or JEE Main exam,April to May,Hall Ticket ID Proof,As per exam body,examhelpdesk@college.edu
+Direct Entry,2,Counselling Registration,Register for state counselling with rank card,June,Rank Card Certificates ID Proof Caste Certificate,Rs 1000,counselling@college.edu
+Direct Entry,3,Choice Filling,Fill college and branch preferences online,June to July,Login Credentials,Free,counselling@college.edu
+Direct Entry,4,Seat Allotment,Check allotment results and download letter,July,None,Free,admissions@college.edu
+Direct Entry,5,Document Verification,Visit college with original documents,July to August,10th 12th TC Rank Card Aadhar,Free,admissions@college.edu
+Direct Entry,6,Fee Payment,Pay first semester fee and confirm admission,August,Allotment Letter Bank Details,As per fee structure,accounts@college.edu
+Direct Entry,7,Orientation,Attend orientation program and get ID card,August,Admission Receipt Photo,Free,student.affairs@college.edu
+Lateral Entry,1,ECET Exam,Appear for ECET or Institute entrance test,May,Hall Ticket ID Proof Diploma Certificate,As per exam body,lateralentry@college.edu
+Lateral Entry,2,Counselling,Participate in lateral entry counselling,June to July,ECET Rank Card Diploma Marks,Rs 1000,lateralentry@college.edu
+Lateral Entry,3,Seat Allotment,Receive allotment and download letter,July,None,Free,lateralentry@college.edu
+Management Quota,1,Application,Submit application form with documents,June to August,Application Form 10th 12th Aadhar,Rs 500,mgmtadmissions@college.edu
+Management Quota,2,Counselling,Attend counselling session at college,Within 3 days,All Original Documents,Free,mgmtadmissions@college.edu

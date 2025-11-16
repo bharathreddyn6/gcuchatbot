@@ -1,0 +1,9 @@
+Department,Designation,Name,Email,Phone,Office Location
+Admissions,Director Admissions,Dr. Rajesh Kumar,admissions@college.edu,+91-040-12345678,Admin Block Room 101
+Accounts,Chief Accounts Officer,Mr. Ramesh Babu,accounts@college.edu,+91-040-12345690,Admin Block Room 201
+Placements,Training and Placement Officer,Dr. Srinivas Reddy,placements@college.edu,+91-040-12345700,Placement Block Room 101
+Hostel,Boys Hostel Warden,Mr. Vijay Kumar,boyshostel@college.edu,+91-9876543210,Boys Hostel Block
+Hostel,Girls Hostel Warden,Ms. Sunitha Reddy,girlshostel@college.edu,+91-9876543211,Girls Hostel Block
+Library,Chief Librarian,Dr. Madhavi Latha,library@college.edu,+91-040-12345720,Central Library
+CSE,HOD Computer Science,Dr. Ramana Murthy,hod.cse@college.edu,+91-040-12345800,CSE Block Room 301
+Principal,Principal,Dr. Bhaskara Rao,principal@college.edu,+91-040-12345950,Admin Block Room 401

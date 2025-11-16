@@ -1,0 +1,11 @@
+Facility Type,Facility Name,Description,Capacity,Timing,Charges,Location,Contact
+Library,Central Library,4 lakh books 200+ journals digital library,500 students,8 AM to 8 PM weekdays,Free for students,Main Block Ground Floor,library@college.edu
+Hostel,Boys Hostel,AC and Non-AC rooms mess and laundry,800 students,24x7 access,Rs 80000 per year AC Rs 60000 Non-AC,Campus North Block,boyshostel@college.edu
+Hostel,Girls Hostel,AC and Non-AC rooms mess and security,600 students,24x7 access,Rs 80000 per year AC Rs 60000 Non-AC,Campus South Block,girlshostel@college.edu
+Lab,CSE Lab,300+ computers latest software,60 students per batch,8 AM to 6 PM,Included in fee,CSE Block 2nd Floor,cselab@college.edu
+Lab,ECE Lab,VLSI embedded systems communication lab,40 students per batch,8 AM to 6 PM,Included in fee,ECE Block 1st Floor,ecelab@college.edu
+Sports,Indoor Sports Complex,Badminton table tennis chess carrom,100 students,6 AM to 9 PM,Free for students,Sports Complex,sports@college.edu
+Sports,Gymnasium,Modern gym equipment fitness training,50 students,6 AM to 9 PM,Rs 1000 per semester,Sports Complex 1st Floor,gym@college.edu
+Healthcare,Medical Center,General physician nurse emergency care,20 patients,9 AM to 6 PM weekdays,Free consultation,Admin Block Ground,medical@college.edu
+Transport,College Bus,AC buses covering 30+ routes,1500 students,As per route schedule,Rs 15000 to Rs 25000 per year,Transport Office,transport@college.edu
+Cafeteria,Main Canteen,Veg non-veg snacks beverages,300 seating,7 AM to 8 PM,Rs 50 to Rs 150 per meal,Central Block Ground,canteen@college.edu

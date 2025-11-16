@@ -1,5 +1,5 @@
 """
-Create All College Data CSV Files
+Create All College Data CSV Files - FIXED VERSION
 Run this script to generate all 10 sample CSV files
 """
 
@@ -81,7 +81,7 @@ PhD,Research,60% in PG,Relevant PG degree,Entrance Test Interview,Research propo
         f.write(eligibility_csv)
     print("✅ Created: eligibility.csv (8 rows)")
     
-    # 4. SPECIALIZATIONS.CSV (First part - will continue)
+    # 4. SPECIALIZATIONS.CSV
     specializations_csv = """Branch,Specialization,Description,Career Opportunities,Industry Demand,Starting From Year,Key Subjects
 CSE,Cybersecurity,Focus on network security ethical hacking and cyber defense,Security Analyst Penetration Tester SOC Analyst,Very High,2nd Year,Cryptography Network Security Ethical Hacking
 CSE,AI & Machine Learning,Study of artificial intelligence machine learning and deep learning,ML Engineer AI Researcher Data Scientist,Very High,2nd Year,Machine Learning Deep Learning NLP Computer Vision
@@ -191,29 +191,7 @@ Library,Chief Librarian,Dr. Madhavi Latha,library@college.edu,+91-040-12345720,C
 CSE,HOD Computer Science,Dr. Ramana Murthy,hod.cse@college.edu,+91-040-12345800,CSE Block Room 301
 Principal,Principal,Dr. Bhaskara Rao,principal@college.edu,+91-040-12345950,Admin Block Room 401"""
     
-    with open("college_data/contact_info.csv", "w", encoding='utf-8') as f:ization
-Fees,Are there any scholarships?,Yes merit-based government and need-based scholarships available
-Courses,Which branches are available?,CSE ECE Mechanical Civil EEE IT and AI&DS with various specializations
-Placements,What is the placement record?,Overall 90%+ placement with average package of 7-9 LPA
-Facilities,Is hostel facility available?,Yes separate hostels for boys and girls with AC and non-AC options
-Eligibility,What is the minimum percentage required?,60% in "2ndpu" with PCM for general category and 55% for reserved categories"""
-    
-    with open("college_data/faq.csv", "w") as f:
-        f.write(faq_csv)
-    print("✅ Created: faq.csv (8 rows)")
-    
-    # 10. CONTACT_INFO.CSV
-    contact_csv = """Department,Designation,Name,Email,Phone,Office Location
-Admissions,Director Admissions,Dr. Rajesh Kumar,admissions@college.edu,+91-o40-12345678,Admin Block Room 101
-Accounts,Chief Accounts Officer,Mr. Ramesh Babu,accounts@college.edu,+91-o40-12345690,Admin Block Room 201
-Placements,Training and Placement Officer,Dr. Srinivas Reddy,placements@college.edu,+91-o40-12345700,Placement Block Room 101
-Hostel,Boys Hostel Warden,Mr. Vijay Kumar,boyshostel@college.edu,+91-9876543210,Boys Hostel Block
-Hostel,Girls Hostel Warden,Ms. Sunitha Reddy,girlshostel@college.edu,+91-9876543211,Girls Hostel Block
-Library,Chief Librarian,Dr. Madhavi Latha,library@college.edu,+91-o40-12345720,Central Library
-CSE,HOD Computer Science,Dr. Ramana Murthy,hod.cse@college.edu,+91-o40-12345800,CSE Block Room 301
-Principal,Principal,Dr. Bhaskara Rao,principal@college.edu,+91-o40-12345950,Admin Block Room 401"""
-    
-    with open("college_data/contact_info.csv", "w") as f:
+    with open("college_data/contact_info.csv", "w", encoding='utf-8') as f:
         f.write(contact_csv)
     print("✅ Created: contact_info.csv (8 rows)")
     
@@ -236,5 +214,5 @@ Principal,Principal,Dr. Bhaskara Rao,principal@college.edu,+91-o40-12345950,Admi
     print("   3. Run: python app_gradio_student.py")
     print("   4. Start asking questions!")
 
-if __name__ == "__main__":
+if __name__== "__main__":
     create_college_data_files()
