@@ -1,0 +1,163 @@
+DATA FLOW DIAGRAM (Level 1)
+================================================================================
+
+                    College Information Chatbot System
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│                              EXTERNAL ENTITIES                              │
+│                                                                             │
+│    ┌──────────────┐              ┌──────────────┐              ┌─────────┐ │
+│    │   Student    │              │    Admin     │              │   LLM   │ │
+│    │     User     │              │              │              │ Service │ │
+│    └──────┬───────┘              └──────┬───────┘              └────┬────┘ │
+│           │                             │                           │      │
+└───────────┼─────────────────────────────┼───────────────────────────┼──────┘
+            │                             │                           │
+            │                             │                           │
+            │  (1) Query                  │  (8) Upload CSV/PDF       │
+            │      Text                   │      Files                │
+            ▼                             ▼                           │
+┌─────────────────────────────────────────────────────────────────┐  │
+│                                                                 │  │
+│                  PROCESS 1: STREAMLIT UI                        │  │
+│                  (Frontend Interface)                           │  │
+│                                                                 │  │
+│  • Display Chat Interface                                       │  │
+│  • Capture User Input                                          │  │
+│  • Show Answer + Citations                                     │  │
+│  • Feedback Buttons                                            │  │
+│                                                                 │  │
+└────────────────────────┬───────────────────────────────────────┘  │
+                         │                                           │
+                         │  (2) HTTP POST Request                    │
+                         │      /chat                                │
+                         │      {query, session_id}                  │
+                         ▼                                           │
+┌─────────────────────────────────────────────────────────────────┐  │
+│                                                                 │  │
+│              PROCESS 2: FASTAPI BACKEND                         │  │
+│              (Application Server - Port 8000)                   │  │
+│                                                                 │  │
+│  Endpoints:                                                     │  │
+│  • POST /chat          • POST /upload                          │  │
+│  • POST /feedback      • GET /stats                            │  │
+│  • DELETE /clear_memory                                         │  │
+│                                                                 │  │
+└────────────────────────┬───────────────────────────────────────┘  │
+                         │                                           │
+                         │  (3) Process Query                        │
+                         │      {query, session_id}                  │
+                         ▼                                           │
+┌─────────────────────────────────────────────────────────────────┐  │
+│                                                                 │  │
+│              PROCESS 3: RAG PIPELINE                            │  │
+│              (Retrieval-Augmented Generation)                   │  │
+│                                                                 │  │
+│  ┌─────────────────────────────────────────────────────────┐   │  │
+│  │  Step 3a: Query Rewriter                                │   │  │
+│  │  • Expand abbreviations                                 │   │  │
+│  │  • Add conversation context                             │   │  │
+│  └─────────────────────────────────────────────────────────┘   │  │
+│                         │                                       │  │
+│                         │ (4) Rewritten Query                   │  │
+│                         ▼                                       │  │
+│  ┌─────────────────────────────────────────────────────────┐   │  │
+│  │  Step 3b: Hybrid Retriever                              │   │  │
+│  │  • Vector Search (ChromaDB)                             │   │  │
+│  │  • Keyword Search (BM25)                                │   │  │
+│  │  • Ensemble Results                                     │   │  │
+│  └─────────────────────────────────────────────────────────┘   │  │
+│                         │                                       │  │
+│                         │ (5) Candidate Chunks                  │  │
+│                         ▼                                       │  │
+│  ┌─────────────────────────────────────────────────────────┐   │  │
+│  │  Step 3c: Cross-Encoder Reranker                        │   │  │
+│  │  • Score relevance                                      │   │  │
+│  │  • Select top-k documents                               │   │  │
+│  └─────────────────────────────────────────────────────────┘   │  │
+│                         │                                       │  │
+│                         │ (6) Top Documents + Context           │  │
+│                         ▼                                       │  │
+│  ┌─────────────────────────────────────────────────────────┐   │  │
+│  │  Step 3d: Answer Generator                              │   │  │
+│  │  • Build prompt with context                            │   │  │
+│  │  • Call LLM ──────────────────────────────────────────────────┤
+│  │  • Generate answer with citations                       │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                         │                                       │
+└─────────────────────────┼───────────────────────────────────────┘
+                          │
+                          │  (7) Answer + Sources
+                          ▼
+┌─────────────────────────────────────────────────────────────────┐
+│                                                                 │
+│                  DATA STORE 1: CHROMA DB                        │
+│                  (Vector Store)                                 │
+│                                                                 │
+│  • Embeddings (HuggingFace MiniLM-L6-v2)                       │
+│  • Document Chunks                                             │
+│  • Metadata (source, page, type)                               │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+            ▲
+            │  (4) Vector Search Query
+            │
+┌───────────┴─────────────────────────────────────────────────────┐
+│                                                                 │
+│              PROCESS 4: DOCUMENT PRELOADER                      │
+│              (Ingestion Pipeline)                               │
+│                                                                 │
+│  • Read CSV/PDF Files                                          │
+│  • Parse & Clean Data                                          │
+│  • Smart Chunking                                              │
+│  • Generate Embeddings                                         │
+│  • Store in Vector DB                                          │
+│                                                                 │
+└────────────────────────┬───────────────────────────────────────┘
+                         ▲
+                         │
+                         │  (8) CSV/PDF Files
+                         │
+                    ┌────┴─────┐
+                    │  college │
+                    │   _data/ │
+                    │  folder  │
+                    └──────────┘
+
+
+┌─────────────────────────────────────────────────────────────────┐
+│                                                                 │
+│              DATA STORE 2: FEEDBACK STORAGE                     │
+│              (feedback/feedback.jsonl)                          │
+│                                                                 │
+│  • User Feedback (thumbs up/down)                              │
+│  • Session ID                                                  │
+│  • Timestamp                                                   │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+            ▲
+            │  (9) Append Feedback
+            │
+   ┌────────┴────────┐
+   │  POST /feedback │
+   │   Endpoint      │
+   └─────────────────┘
+
+
+================================================================================
+
+DATA FLOWS SUMMARY:
+
+(1)  User → Streamlit UI : Query text input
+(2)  Streamlit → FastAPI : HTTP POST /chat {query, session_id}
+(3)  FastAPI → RAG Pipeline : Process query request
+(4)  RAG → ChromaDB : Vector + keyword search
+(5)  ChromaDB → RAG : Retrieved document chunks
+(6)  RAG → LLM Service : Prompt with context + question
+(7)  LLM → RAG → FastAPI → Streamlit → User : Generated answer + sources
+(8)  Admin → Preloader → ChromaDB : Document ingestion (CSV/PDF)
+(9)  User → FastAPI → Feedback Store : Thumbs up/down feedback
+
+================================================================================

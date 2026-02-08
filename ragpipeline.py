@@ -8,9 +8,12 @@ import re
 from typing import List, Dict, Any, Optional
 from datetime import datetime
 
+COLLEGE_NAME = "Garden City University"
+
 # LangChain Document Loaders
-from langchain.document_loaders import (PyPDFLoader, CSVLoader,
+from langchain_community.document_loaders import (PyPDFLoader, CSVLoader,
                                         UnstructuredURLLoader)
+from langchain_community.tools import DuckDuckGoSearchRun
 
 # LangChain Text Splitters
 from langchain.text_splitter import (RecursiveCharacterTextSplitter,
@@ -18,6 +21,7 @@ from langchain.text_splitter import (RecursiveCharacterTextSplitter,
 
 # LangChain Embeddings
 from langchain_huggingface import HuggingFaceEmbeddings
+from sentence_transformers import CrossEncoder
 # Uncomment for OpenAI:
 # from langchain_openai import OpenAIEmbeddings
 
@@ -132,8 +136,13 @@ class DocumentIngestionPipeline:
     Document ingestion using LangChain loaders and smart chunking
     """
 
-    def __init__(self, vector_store: Chroma):
+    def __init__(self,
+                 vector_store: Chroma,
+                 preloaded_csvs: Optional[Dict[str, pd.DataFrame]] = None,
+                 preloaded_pdfs: Optional[Dict[str, List[Document]]] = None):
         self.vector_store = vector_store
+        self.preloaded_csvs = preloaded_csvs or {}
+        self.preloaded_pdfs = preloaded_pdfs or {}
 
         # Initialize text splitters
         self.text_splitter = RecursiveCharacterTextSplitter(
@@ -160,9 +169,16 @@ class DocumentIngestionPipeline:
     def _ingest_pdf(self, file_path: str, filename: str) -> List[Document]:
         """Ingest PDF using PyPDFLoader with smart chunking"""
 
-        # Load PDF with page awareness
-        loader = PyPDFLoader(file_path)
-        pages = loader.load()
+        # Load PDF with page awareness (prefer cached pages)
+        if filename in self.preloaded_pdfs:
+            pages = [
+                Document(page_content=doc.page_content,
+                         metadata=dict(doc.metadata))
+                for doc in self.preloaded_pdfs[filename]
+            ]
+        else:
+            loader = PyPDFLoader(file_path)
+            pages = loader.load()
 
         # Add custom metadata
         for page in pages:
@@ -184,7 +200,10 @@ class DocumentIngestionPipeline:
         """Ingest CSV using CSVLoader with structured data preservation"""
 
         # Load CSV
-        df = pd.read_csv(file_path)
+        if filename in self.preloaded_csvs:
+            df = self.preloaded_csvs[filename].copy()
+        else:
+            df = pd.read_csv(file_path)
 
         # Clean column names
         df.columns = df.columns.str.strip()
@@ -498,8 +517,8 @@ class ConversationalRAGChain:
             # client is initialized correctly.
             self.llm = ChatGoogleGenerativeAI(
                 model="gemini-2.5-pro",
-                temperature=0.3, 
-                google_api_key="AIzaSyDLe5OQ7_7iplT5EHrreg7MKfDiQ2Bl0Ww")
+                temperature=0.3,
+                google_api_key=os.getenv('GEMINI_API_KEY'))
         except:
             # Fallback to HuggingFace
             from transformers import pipeline
@@ -547,8 +566,69 @@ Answer (include citations):""")
 
         return self.sessions[session_id]['memory']
 
+    def check_query_relevance(self, query: str) -> Dict[str, bool]:
+        """
+        Check if the query is relevant to the college domain using LLM.
+        Returns a dict: {'is_relevant': bool, 'is_general_knowledge': bool}
+        """
+        if not self.llm:
+            return {'is_relevant': True, 'is_general_knowledge': False}  # Default to allowing if no LLM
+
+        try:
+            # Simple prompt to classify the query
+            # We use a zero-shot classification approach
+            
+            check_prompt = PromptTemplate(
+                input_variables=["query", "college_name"],
+                template="""You are a strict guard for a college chatbot for {college_name}.
+Your job is to classify if a query is relevant to the college/education domain or if it is general knowledge (like "Who is PM of India?", "What is the capital of France?", "Current cricket score", etc.).
+
+Query: {query}
+
+Rules:
+1. "Who is the PM?", "Who is CM?", "Weather in London", "Cricket score" -> NOT RELEVANT (General Knowledge)
+2. "What are the fees?", "Courses offered", "Admission process", "Hostel facilities", "Location of college", "Placement records" -> RELEVANT
+3. "Is there a gym?", "Library timings" -> RELEVANT (implies college gym/library)
+4. "Tell me about the college" -> RELEVANT
+5. Greetings like "Hi", "Hello" -> RELEVANT
+
+Do not answer the query. Just output structured classification.
+
+Output format (JSON):
+{{"relevant": true/false, "general_knowledge": true/false}}
+
+JSON Output:"""
+            )
+            
+            chain = LLMChain(llm=self.llm, prompt=check_prompt)
+            result = chain.run(query=query, college_name=COLLEGE_NAME)
+            
+            # clean result
+            import json
+            result = result.strip()
+            if result.startswith("```json"):
+                result = result[7:-3]
+            if result.startswith("```"):
+                result = result[3:-3]
+                
+            data = json.loads(result)
+            return {'is_relevant': data.get('relevant', True), 'is_general_knowledge': data.get('general_knowledge', False)}
+            
+        except Exception as e:
+            print(f"Relevance check failed: {e}")
+            return {'is_relevant': True, 'is_general_knowledge': False}
+
     def process_query(self, query: str, session_id: str) -> Dict[str, Any]:
         """Process query through conversational RAG pipeline"""
+
+        # Step 0: Check Relevance
+        relevance = self.check_query_relevance(query)
+        if not relevance['is_relevant'] and relevance['is_general_knowledge']:
+            return {
+                'answer': f"I am a specialized chatbot for {COLLEGE_NAME}. I cannot answer general knowledge questions like '{query}'. Please ask me about admissions, courses, fees, or campus life.",
+                'source_documents': [],
+                'rewritten_query': query
+            }
 
         # Get memory
         memory = self._get_or_create_memory(session_id)
@@ -560,50 +640,98 @@ Answer (include citations):""")
         docs, rewritten_query = self.rag_retriever.retrieve_with_rewriting(
             query, history_str)
 
-        if not docs:
-            answer = "I don't have information about that in my knowledge base. Please contact the admissions office at admissions@college.edu for more details."
-            return {
-                'answer': answer,
-                'source_documents': [],
-                'rewritten_query': rewritten_query
-            }
+        # Step 1: Try Local Answer
+        # Even if docs are found, they might be irrelevant.
+        # But for now, we assume if we found 'something', we try to answer.
+        # The key is to catch the "I don't know" from the QA chain.
+        
+        answer_text = ""
+        top_docs = []
+        
+        if docs:
+            # Rerank retrieved docs (use cross-encoder if available)
+            try:
+                top_docs = self.rag_retriever.rerank(query, docs, top_k=5)
+            except Exception:
+                top_docs = docs[:5]
 
-        # Rerank retrieved docs (use cross-encoder if available)
-        try:
-            top_docs = self.rag_retriever.rerank(query, docs, top_k=5)
-        except Exception:
-            top_docs = docs[:5]
+            # Build context from top documents (include simple citations)
+            try:
+                context_parts = []
+                for d in top_docs:
+                    src = d.metadata.get('source', 'unknown')
+                    snippet = d.page_content
+                    context_parts.append(f"Source: {src}\n{snippet}")
 
-        # Build context from top documents (include simple citations)
-        try:
-            context_parts = []
-            for d in top_docs:
-                src = d.metadata.get('source', 'unknown')
-                snippet = d.page_content
-                context_parts.append(f"Source: {src}\n{snippet}")
+                context_text = "\n\n".join(context_parts)
 
-            context_text = "\n\n".join(context_parts)
+                # Run an LLMChain using the QA prompt
+                qa_chain = LLMChain(llm=self.llm, prompt=self.qa_prompt)
+                answer_text = qa_chain.run(context=context_text, question=query)
+            
+            except Exception as e:
+                print("Error generating answer:", e)
+                answer_text = "I don't have information about that."
 
-            # Run an LLMChain using the QA prompt
-            qa_chain = LLMChain(llm=self.llm, prompt=self.qa_prompt)
-            answer_text = qa_chain.run(context=context_text, question=query)
+        # Step 2: Fallback to Search if Local failed or answer is "I don't know"
+        # We check specific phrases that indicate failure
+        failure_phrases = [
+            "I don't have information about that",
+            "I don't have info",
+            "not mentioned in the context",
+            "context does not contain",
+            "sorry"
+        ]
+        
+        is_failure = not docs or any(phrase.lower() in answer_text.lower() for phrase in failure_phrases)
+        
+        # Only search if it WAS relevant but local DB failed
+        if is_failure:
+            print(f"Local info insufficient. Searching web for: {rewritten_query} (College: {COLLEGE_NAME})")
+            try:
+                # Add college context to search
+                search_query = f"{rewritten_query} {COLLEGE_NAME}"
+                search = DuckDuckGoSearchRun()
+                web_results = search.run(search_query)
+                
+                context_text = f"Source: Web Search (DuckDuckGo)\n\n{web_results}"
+                
+                # Run QA chain again with web results
+                # We need a strict prompt here too to avoid hallucination if search is garbage
+                qa_chain = LLMChain(llm=self.llm, prompt=self.qa_prompt)
+                answer_text = qa_chain.run(context=context_text, question=query)
+                
+                # If even web search fails (returns "I don't have info"), then we truly fail.
+                # But usually DuckDuckGo returns something.
+                
+                # Create a mock document for the source
+                web_doc = Document(page_content=web_results, metadata={'source': 'Web Search (DuckDuckGo)'})
+                
+                # Update session stats
+                self.sessions[session_id]['message_count'] += 1
+                
+                return {
+                    'answer': answer_text,
+                    'source_documents': [web_doc],
+                    'rewritten_query': rewritten_query
+                }
+            except Exception as e:
+                print(f"Web search failed: {e}")
+                answer_text = f"I couldn't find information about that in my database or on the web. Please contact the admissions office at admissions@{COLLEGE_NAME.lower().replace(' ', '')}.edu"
+                return {
+                    'answer': answer_text,
+                    'source_documents': [],
+                    'rewritten_query': rewritten_query
+                }
 
-            # Update session stats
-            self.sessions[session_id]['message_count'] += 1
+        # If we reached here, local answer was successful
+        self.sessions[session_id]['message_count'] += 1
 
-            return {
-                'answer': answer_text,
-                'source_documents': top_docs,
-                'rewritten_query': rewritten_query
-            }
-        except Exception as e:
-            # Log and return a graceful message for the frontend
-            print("Error generating answer:", e)
-            return {
-                'answer': "Sorry, I'm having trouble answering right now. Please try again.",
-                'source_documents': [],
-                'rewritten_query': rewritten_query
-            }
+        return {
+            'answer': answer_text,
+            'source_documents': top_docs,
+            'rewritten_query': rewritten_query
+        }
 
     def _format_history(self, memory: ConversationBufferMemory) -> str:
         """Format conversation history as string"""

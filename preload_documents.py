@@ -6,8 +6,82 @@ Then students can start asking questions immediately
 
 import os
 import glob
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Dict, List
+
+import pandas as pd
+from langchain.document_loaders import PyPDFLoader
+from langchain.schema import Document
+
 from ragpipeline import DocumentIngestionPipeline, initialize_vector_store
+
+
+@dataclass
+class PreloadedContent:
+    """In-memory snapshot of CSV tables and PDF pages."""
+
+    csv_data: Dict[str, pd.DataFrame]
+    pdf_pages: Dict[str, List[Document]]
+    csv_files: List[str]
+    pdf_files: List[str]
+
+
+_DOCUMENT_CACHE: Dict[str, object] = {"directory": None, "content": None}
+
+
+def load_document_cache(data_directory: str = "college_data",
+                        force_reload: bool = False) -> PreloadedContent:
+    """Eagerly load all CSV/PDF documents into memory once."""
+
+    global _DOCUMENT_CACHE
+
+    directory = Path(data_directory).resolve()
+
+    # Directory missing – cache as empty snapshot
+    if not directory.exists():
+        content = PreloadedContent(csv_data={},
+                                   pdf_pages={},
+                                   csv_files=[],
+                                   pdf_files=[])
+        _DOCUMENT_CACHE = {"directory": directory, "content": content}
+        return content
+
+    cached_dir = _DOCUMENT_CACHE.get("directory")
+    cached_content = _DOCUMENT_CACHE.get("content")
+
+    if (not force_reload and cached_dir == directory
+            and isinstance(cached_content, PreloadedContent)):
+        return cached_content
+
+    csv_data: Dict[str, pd.DataFrame] = {}
+    pdf_pages: Dict[str, List[Document]] = {}
+    csv_files: List[str] = []
+    pdf_files: List[str] = []
+
+    for csv_path in sorted(directory.glob("*.csv")):
+        csv_files.append(str(csv_path))
+        csv_data[csv_path.name] = pd.read_csv(csv_path)
+
+    for pdf_path in sorted(directory.glob("*.pdf")):
+        pdf_files.append(str(pdf_path))
+        loader = PyPDFLoader(str(pdf_path))
+        pdf_pages[pdf_path.name] = loader.load()
+
+    content = PreloadedContent(csv_data=csv_data,
+                               pdf_pages=pdf_pages,
+                               csv_files=csv_files,
+                               pdf_files=pdf_files)
+
+    _DOCUMENT_CACHE = {"directory": directory, "content": content}
+    return content
+
+
+def clear_document_cache():
+    """Reset the in-memory cache (handy for tests or reloads)."""
+
+    global _DOCUMENT_CACHE
+    _DOCUMENT_CACHE = {"directory": None, "content": None}
 
 def preload_documents(data_directory: str = "college_data"):
     """
@@ -23,11 +97,6 @@ def preload_documents(data_directory: str = "college_data"):
     vector_store = initialize_vector_store()
     print("✅ Vector store initialized")
     
-    # Initialize ingestion pipeline
-    print("🔄 Initializing document ingestion pipeline...")
-    ingestion_pipeline = DocumentIngestionPipeline(vector_store)
-    print("✅ Pipeline ready")
-    
     # Check if directory exists
     if not os.path.exists(data_directory):
         print(f"\n❌ Directory '{data_directory}' not found!")
@@ -38,22 +107,31 @@ def preload_documents(data_directory: str = "college_data"):
         print("   - CSVs: fees, courses, eligibility criteria")
         print("\nThen run this script again.")
         return
-    
-    # Find all PDF and CSV files
-    pdf_files = glob.glob(os.path.join(data_directory, "*.pdf"))
-    csv_files = glob.glob(os.path.join(data_directory, "*.csv"))
-    
-    all_files = pdf_files + csv_files
-    
-    if not all_files:
+
+    # Load documents once into memory
+    print("\n📥 Loading documents into memory (one-time)...")
+    content = load_document_cache(data_directory)
+
+    total_files = len(content.pdf_files) + len(content.csv_files)
+    if total_files == 0:
         print(f"\n⚠️  No PDF or CSV files found in '{data_directory}/'")
         print("\n💡 Add your college documents and run this script again.")
         return
-    
-    print(f"\n📂 Found {len(all_files)} files:")
-    print(f"   - PDFs: {len(pdf_files)}")
-    print(f"   - CSVs: {len(csv_files)}")
-    print()
+
+    print(f"✅ Cached {total_files} files:")
+    print(f"   - PDFs: {len(content.pdf_files)}")
+    print(f"   - CSVs: {len(content.csv_files)}")
+
+    # Initialize ingestion pipeline with cached data
+    print("\n🔄 Initializing document ingestion pipeline...")
+    ingestion_pipeline = DocumentIngestionPipeline(
+        vector_store,
+        preloaded_csvs=content.csv_data,
+        preloaded_pdfs=content.pdf_pages)
+    print("✅ Pipeline ready (using in-memory data)")
+
+    # Merge in the same order: PDFs first for consistency with previous runs
+    all_files = content.pdf_files + content.csv_files
     
     # Process each file
     total_chunks = 0

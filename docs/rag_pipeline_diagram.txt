@@ -1,0 +1,239 @@
+RAG PIPELINE BLOCK DIAGRAM
+================================================================================
+
+                    Advanced RAG Pipeline Architecture
+
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│                              INPUT LAYER                                    │
+│                                                                             │
+│    ┌──────────────────────────────────────────────────────────────────┐    │
+│    │                                                                   │    │
+│    │   User Query: "What is the fee for CSE Cybersecurity?"          │    │
+│    │   Session ID: student_abc123                                     │    │
+│    │                                                                   │    │
+│    └─────────────────────────────┬─────────────────────────────────────┘   │
+│                                  │                                         │
+└──────────────────────────────────┼─────────────────────────────────────────┘
+                                   │
+                                   ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│                         STAGE 1: QUERY REWRITING                            │
+│                                                                             │
+│  ┌────────────────────────────────────────────────────────────────────┐    │
+│  │                     Query Rewriter                                 │    │
+│  │                                                                    │    │
+│  │  Input:  "What is the fee for CSE Cybersecurity?"                 │    │
+│  │          + Conversation History                                    │    │
+│  │                                                                    │    │
+│  │  Process:                                                          │    │
+│  │  • Expand abbreviations (CSE → Computer Science Engineering)      │    │
+│  │  • Add context from previous conversation                         │    │
+│  │  • Clarify ambiguous terms                                        │    │
+│  │  • Add implicit keywords (annual fee, total fee)                  │    │
+│  │                                                                    │    │
+│  │  Output: "Computer Science Engineering CSE Cybersecurity          │    │
+│  │           specialization annual fee total fee cost 4 years"       │    │
+│  │                                                                    │    │
+│  │  Model: Google Gemini 2.5 Pro / Rule-based fallback              │    │
+│  │                                                                    │    │
+│  └────────────────────────────────────────────────────────────────────┘    │
+│                                  │                                         │
+└──────────────────────────────────┼─────────────────────────────────────────┘
+                                   │ Rewritten Query
+                                   ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│                       STAGE 2: HYBRID RETRIEVAL                             │
+│                                                                             │
+│  ┌─────────────────────────────────┐    ┌─────────────────────────────┐   │
+│  │    Vector Retriever             │    │    BM25 Retriever           │   │
+│  │    (Semantic Search)            │    │    (Keyword Search)         │   │
+│  │                                 │    │                             │   │
+│  │  • Model: HuggingFace          │    │  • Tokenize query           │   │
+│  │    all-MiniLM-L6-v2            │    │  • TF-IDF scoring           │   │
+│  │  • Generates embeddings         │    │  • Exact word matching      │   │
+│  │  • Cosine similarity search     │    │  • Good for acronyms        │   │
+│  │  • Returns top 10 chunks        │    │  • Returns top 10 chunks    │   │
+│  │                                 │    │                             │   │
+│  │  Query: ChromaDB               │    │  Query: In-memory docs      │   │
+│  │  ↓                              │    │  ↓                          │   │
+│  │  Results: 10 chunks             │    │  Results: 10 chunks         │   │
+│  │                                 │    │                             │   │
+│  └─────────────┬───────────────────┘    └────────────┬────────────────┘   │
+│                │                                      │                    │
+│                └──────────────┬───────────────────────┘                    │
+│                               │                                            │
+│                               ▼                                            │
+│                    ┌─────────────────────┐                                 │
+│                    │  Ensemble Combiner  │                                 │
+│                    │  Weight: 70% Vector │                                 │
+│                    │         30% BM25    │                                 │
+│                    │  Output: 10-15      │                                 │
+│                    │  candidate chunks   │                                 │
+│                    └──────────┬──────────┘                                 │
+│                               │                                            │
+└───────────────────────────────┼────────────────────────────────────────────┘
+                                │ Candidate Documents
+                                ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│                        STAGE 3: RE-RANKING                                  │
+│                                                                             │
+│  ┌────────────────────────────────────────────────────────────────────┐    │
+│  │                  Cross-Encoder Reranker                            │    │
+│  │                                                                    │    │
+│  │  Model: cross-encoder/ms-marco-MiniLM-L-6-v2                      │    │
+│  │                                                                    │    │
+│  │  Process:                                                          │    │
+│  │  • Score each (query, document) pair                              │    │
+│  │  • Compute relevance score (0-1)                                  │    │
+│  │  • Sort by score descending                                       │    │
+│  │  • Select top 5 documents                                         │    │
+│  │                                                                    │    │
+│  │  Input: 10-15 candidate chunks                                    │    │
+│  │  Output: Top 5 most relevant chunks                               │    │
+│  │                                                                    │    │
+│  │  Example Scores:                                                   │    │
+│  │  Document 1: 0.94 ✓                                               │    │
+│  │  Document 2: 0.89 ✓                                               │    │
+│  │  Document 3: 0.87 ✓                                               │    │
+│  │  Document 4: 0.85 ✓                                               │    │
+│  │  Document 5: 0.82 ✓                                               │    │
+│  │  Document 6: 0.65 ✗                                               │    │
+│  │                                                                    │    │
+│  └────────────────────────────────────────────────────────────────────┘    │
+│                                  │                                         │
+└──────────────────────────────────┼─────────────────────────────────────────┘
+                                   │ Top 5 Documents
+                                   ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│                    STAGE 4: CONTEXT COMPRESSION                             │
+│                                                                             │
+│  ┌────────────────────────────────────────────────────────────────────┐    │
+│  │                  Context Builder                                   │    │
+│  │                                                                    │    │
+│  │  Process:                                                          │    │
+│  │  • Extract most relevant sentences from top 5 docs                │    │
+│  │  • Remove redundant information                                   │    │
+│  │  • Format with source citations                                   │    │
+│  │  • Limit context to ~2000 tokens                                  │    │
+│  │                                                                    │    │
+│  │  Output Context:                                                   │    │
+│  │  ┌────────────────────────────────────────────────────────────┐   │    │
+│  │  │ Source: fees.csv                                           │   │    │
+│  │  │ CSE Cybersecurity annual fee: Rs 130,000                   │   │    │
+│  │  │ Total 4-year fee: Rs 520,000                               │   │    │
+│  │  │                                                             │   │    │
+│  │  │ Source: courses.csv                                         │   │    │
+│  │  │ CSE specialization available with NAAC A+ accreditation    │   │    │
+│  │  │                                                             │   │    │
+│  │  │ Source: specializations.csv                                 │   │    │
+│  │  │ Cybersecurity focus: network security, ethical hacking     │   │    │
+│  │  └────────────────────────────────────────────────────────────┘   │    │
+│  │                                                                    │    │
+│  └────────────────────────────────────────────────────────────────────┘    │
+│                                  │                                         │
+└──────────────────────────────────┼─────────────────────────────────────────┘
+                                   │ Compressed Context
+                                   ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│                    STAGE 5: ANSWER GENERATION                               │
+│                                                                             │
+│  ┌────────────────────────────────────────────────────────────────────┐    │
+│  │                  LLM QA Generator                                  │    │
+│  │                                                                    │    │
+│  │  Model: Google Gemini 2.5 Pro (Temperature: 0.3)                  │    │
+│  │  Fallback: HuggingFace Flan-T5-Base                               │    │
+│  │                                                                    │    │
+│  │  Prompt Template:                                                  │    │
+│  │  ┌────────────────────────────────────────────────────────────┐   │    │
+│  │  │ You are a college information assistant.                   │   │    │
+│  │  │ Answer using ONLY the provided context.                    │   │    │
+│  │  │                                                             │   │    │
+│  │  │ Context: {compressed_context}                              │   │    │
+│  │  │                                                             │   │    │
+│  │  │ Question: {original_query}                                 │   │    │
+│  │  │                                                             │   │    │
+│  │  │ Rules:                                                      │   │    │
+│  │  │ - Be concise and direct                                    │   │    │
+│  │  │ - Include citations (source file, page)                    │   │    │
+│  │  │ - If not in context, say "I don't have that information"  │   │    │
+│  │  └────────────────────────────────────────────────────────────┘   │    │
+│  │                                                                    │    │
+│  │  Output:                                                           │    │
+│  │  ┌────────────────────────────────────────────────────────────┐   │    │
+│  │  │ The fee for CSE with Cybersecurity specialization is:     │   │    │
+│  │  │ • Annual Fee: Rs 1,30,000                                  │   │    │
+│  │  │ • Total 4-Year Fee: Rs 5,20,000                            │   │    │
+│  │  │                                                             │   │    │
+│  │  │ This includes the NAAC A+ accredited program focusing on   │   │    │
+│  │  │ network security and ethical hacking.                      │   │    │
+│  │  │                                                             │   │    │
+│  │  │ Sources: fees.csv, courses.csv, specializations.csv        │   │    │
+│  │  └────────────────────────────────────────────────────────────┘   │    │
+│  │                                                                    │    │
+│  └────────────────────────────────────────────────────────────────────┘    │
+│                                  │                                         │
+└──────────────────────────────────┼─────────────────────────────────────────┘
+                                   │
+                                   ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                             │
+│                           OUTPUT LAYER                                      │
+│                                                                             │
+│  ┌────────────────────────────────────────────────────────────────────┐    │
+│  │                       Response Package                             │    │
+│  │                                                                    │    │
+│  │  {                                                                 │    │
+│  │    "answer": "The fee for CSE with Cybersecurity...",            │    │
+│  │    "sources": ["fees.csv", "courses.csv", "specializations.csv"], │    │
+│  │    "rewritten_query": "Computer Science Engineering CSE...",      │    │
+│  │    "session_id": "student_abc123"                                 │    │
+│  │  }                                                                 │    │
+│  │                                                                    │    │
+│  └────────────────────────────────────────────────────────────────────┘    │
+│                                  │                                         │
+└──────────────────────────────────┼─────────────────────────────────────────┘
+                                   │
+                                   ▼
+                            ┌──────────────┐
+                            │   Streamlit  │
+                            │      UI      │
+                            │   (Display)  │
+                            └──────────────┘
+
+
+================================================================================
+
+SUPPORTING COMPONENTS:
+
+┌────────────────────────┐     ┌────────────────────────┐
+│  Conversation Memory   │     │   Vector Database      │
+│                        │     │                        │
+│  • Session-based       │     │  ChromaDB              │
+│  • Last 6 messages     │     │  • 800-char chunks     │
+│  • Context carryover   │     │  • Metadata tags       │
+│  • Auto-expire         │     │  • Persistent storage  │
+└────────────────────────┘     └────────────────────────┘
+
+PERFORMANCE METRICS:
+
+┌────────────────────────────────────────────────────────────────┐
+│                                                                │
+│  Query Rewriting:        ~0.5-1.5 seconds (Gemini API)        │
+│  Hybrid Retrieval:       ~0.2-0.5 seconds (local)             │
+│  Reranking:              ~0.3-0.7 seconds (cross-encoder)     │
+│  Answer Generation:      ~2-4 seconds (Gemini API)            │
+│  ─────────────────────────────────────────────────────────     │
+│  Total Pipeline:         ~3-7 seconds per query               │
+│                                                                │
+│  Target: < 2 seconds (requires local LLM + optimization)      │
+│                                                                │
+└────────────────────────────────────────────────────────────────┘
+
+================================================================================
