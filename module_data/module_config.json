@@ -1,0 +1,36 @@
+{
+  "modules": {
+    "library": {
+      "enabled": true,
+      "config": {
+        "driver": "sqlite",
+        "host": "",
+        "port": null,
+        "database": "library.db",
+        "username": "",
+        "password": "",
+        "file_path": "library.db"
+      },
+      "last_updated": "2026-02-09T10:47:14.565635"
+    },
+    "study_plan": {
+      "enabled": true,
+      "config": {},
+      "last_updated": null
+    },
+    "academic": {
+      "enabled": true,
+      "config": {},
+      "last_updated": null
+    },
+    "complaints": {
+      "enabled": true,
+      "config": {},
+      "last_updated": null
+    }
+  },
+  "global_settings": {
+    "admin_password_hash": null,
+    "created_at": "2026-02-09T10:37:40.063528"
+  }
+}

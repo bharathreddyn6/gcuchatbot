@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mock Test – GCU</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 1020px;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            padding: 32px;
+            position: relative;
+            margin: auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: #f1f5f9;
+            margin-bottom: 6px;
+            font-size: 26px;
+            letter-spacing: -0.5px;
+        }
+        .subtitle {
+            text-align: center;
+            color: #64748b;
+            font-size: 14px;
+            margin-bottom: 28px;
+        }
+
+        /* ── Upload View ── */
+        #upload-view {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            border: 2px dashed #334155;
+            border-radius: 12px;
+            padding: 56px 40px;
+            text-align: center;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        #upload-view:hover, #upload-view.dragover {
+            border-color: #3b82f6;
+            background: rgba(59,130,246,0.06);
+        }
+        #upload-view .icon { font-size: 52px; color: #3b82f6; margin-bottom: 16px; }
+        #upload-view h3 { color: #e2e8f0; margin: 0 0 8px; font-size: 18px; }
+        #upload-view p { color: #64748b; font-size: 14px; margin: 0 0 20px; }
+        #file-input { display: none; }
+
+        .upload-btn {
+            background: linear-gradient(135deg, #3b82f6, #6366f1);
+            color: white;
+            border: none;
+            padding: 13px 28px;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+        .upload-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+
+        /* ── Loading Overlay ── */
+        .loading-overlay {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 60px;
+            text-align: center;
+        }
+        .spinner {
+            width: 48px; height: 48px;
+            border: 4px solid #334155;
+            border-top-color: #3b82f6;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-bottom: 18px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-overlay p { color: #94a3b8; font-size: 15px; }
+
+        /* ── Test View ── */
+        #test-view {
+            display: none;
+            grid-template-columns: 90px 1fr;
+            grid-template-rows: auto 1fr auto;
+            gap: 20px;
+            min-height: 580px;
+        }
+
+        .q-nav {
+            grid-row: 1 / span 3;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .q-btn {
+            background: #0f172a;
+            border: 2px solid #334155;
+            border-radius: 10px;
+            width: 100%;
+            aspect-ratio: 1;
+            font-size: 16px;
+            font-weight: 700;
+            color: #94a3b8;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .q-btn:hover { border-color: #94a3b8; }
+        .q-btn.active  { border-color: #3b82f6; color: #3b82f6; background: rgba(59,130,246,0.1); }
+        .q-btn.answered { background: #16a34a; color: #fff; border-color: #16a34a; }
+        .q-btn.answered.active { background: #15803d; border-color: #15803d; }
+
+        .q-display {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            padding: 20px 24px;
+            font-size: 16px;
+            color: #e2e8f0;
+            line-height: 1.6;
+            font-weight: 500;
+        }
+        .q-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #3b82f6;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .answer-space { display: flex; flex-direction: column; }
+        .answer-area {
+            width: 100%;
+            min-height: 280px;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            padding: 16px 18px;
+            font-family: inherit;
+            font-size: 15px;
+            color: #e2e8f0;
+            resize: none;
+            outline: none;
+            transition: border-color 0.2s;
+            flex-grow: 1;
+        }
+        .answer-area::placeholder { color: #475569; }
+        .answer-area:focus { border-color: #3b82f6; }
+
+        .actions {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+        .action-btn {
+            border: none;
+            padding: 12px 22px;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .action-btn:hover { opacity: 0.88; transform: translateY(-1px); }
+        .btn-draft  { background: #334155; color: #cbd5e1; }
+        .btn-save   { background: #10b981; color: #fff; }
+        .btn-submit {
+            background: linear-gradient(135deg, #f59e0b, #ef4444);
+            color: #fff;
+            margin-left: auto;
+        }
+
+        /* ── Results View ── */
+        #results-view { display: none; }
+
+        .score-card {
+            background: linear-gradient(135deg, #1e3a5f, #1e293b);
+            border: 1px solid #3b82f6;
+            border-radius: 16px;
+            padding: 32px;
+            text-align: center;
+            margin-bottom: 28px;
+        }
+        .score-headline { font-size: 14px; color: #60a5fa; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; }
+        .score-big {
+            font-size: 64px;
+            font-weight: 700;
+            color: #f1f5f9;
+            line-height: 1.1;
+            margin: 8px 0;
+        }
+        .score-big span { font-size: 32px; color: #60a5fa; }
+        .score-meta { display: flex; justify-content: center; gap: 36px; margin-top: 18px; flex-wrap: wrap; }
+        .score-meta-item { text-align: center; }
+        .score-meta-item .val { font-size: 26px; font-weight: 700; color: #f1f5f9; }
+        .score-meta-item .lbl { font-size: 12px; color: #64748b; margin-top: 2px; }
+        .grade-badge {
+            display: inline-block;
+            font-size: 28px;
+            font-weight: 800;
+            padding: 6px 24px;
+            border-radius: 50px;
+            margin-top: 16px;
+            letter-spacing: 2px;
+        }
+        .grade-A-plus { background: #14532d; color: #4ade80; border: 2px solid #4ade80; }
+        .grade-A      { background: #1a3a1a; color: #86efac; border: 2px solid #86efac; }
+        .grade-B      { background: #1e3a5f; color: #60a5fa; border: 2px solid #60a5fa; }
+        .grade-C      { background: #422006; color: #fb923c; border: 2px solid #fb923c; }
+        .grade-D      { background: #3d1a00; color: #f97316; border: 2px solid #f97316; }
+        .grade-F      { background: #450a0a; color: #f87171; border: 2px solid #f87171; }
+
+        .results-grid { display: flex; flex-direction: column; gap: 16px; }
+        .result-card {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            padding: 20px 24px;
+            transition: border-color 0.2s;
+        }
+        .result-card:hover { border-color: #475569; }
+        .result-card-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        .result-q-num { font-size: 11px; color: #3b82f6; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; }
+        .result-q-text { color: #e2e8f0; font-size: 15px; font-weight: 600; line-height: 1.5; margin-top: 4px; }
+        .marks-pill {
+            flex-shrink: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #1e293b;
+            border-radius: 10px;
+            padding: 10px 16px;
+            border: 1px solid #334155;
+            min-width: 72px;
+        }
+        .marks-pill .marks-num { font-size: 22px; font-weight: 800; }
+        .marks-pill .marks-denom { font-size: 11px; color: #64748b; }
+        .marks-pill.high .marks-num { color: #4ade80; }
+        .marks-pill.mid  .marks-num { color: #fbbf24; }
+        .marks-pill.low  .marks-num { color: #f87171; }
+
+        .result-answer-label { font-size: 11px; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 4px; }
+        .result-answer-text  { color: #94a3b8; font-size: 14px; font-style: italic; background: #1e293b; border-radius: 6px; padding: 10px 14px; margin-bottom: 12px; white-space: pre-wrap; }
+        .result-feedback {
+            background: rgba(59,130,246,0.08);
+            border-left: 3px solid #3b82f6;
+            border-radius: 0 8px 8px 0;
+            padding: 10px 14px;
+            color: #93c5fd;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+        .result-feedback i { margin-right: 6px; }
+        .progress-bar-wrap { background: #1e293b; border-radius: 4px; height: 6px; margin-top: 14px; overflow: hidden; }
+        .progress-bar-fill { height: 100%; border-radius: 4px; transition: width 1s ease; }
+
+        .retry-btn {
+            display: block;
+            margin: 28px auto 0;
+            background: linear-gradient(135deg, #3b82f6, #6366f1);
+            color: #fff;
+            border: none;
+            padding: 14px 36px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+        .retry-btn:hover { opacity: 0.9; transform: translateY(-2px); }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1><i class="fas fa-graduation-cap" style="color:#3b82f6;margin-right:10px;"></i>Mock Test</h1>
+        <p class="subtitle">Upload your study material – we'll generate & evaluate answers automatically.</p>
+
+        <!-- Upload -->
+        <div id="upload-container">
+            <div id="upload-view">
+                <div class="icon"><i class="fas fa-cloud-upload-alt"></i></div>
+                <h3>Upload Your PDF Material</h3>
+                <p>We'll extract 5 key questions for you to practice.</p>
+                <input type="file" id="file-input" accept="application/pdf">
+                <button class="upload-btn" onclick="document.getElementById('file-input').click()">
+                    <i class="fas fa-file-pdf" style="margin-right:6px;"></i> Choose PDF File
+                </button>
+            </div>
+
+            <!-- Loading extracting -->
+            <div class="loading-overlay" id="loading-view">
+                <div class="spinner"></div>
+                <p>Analyzing document and generating questions…<br>This may take a moment.</p>
+            </div>
+        </div>
+
+        <!-- Test -->
+        <div id="test-view">
+            <div class="q-nav" id="q-nav">
+                <button class="q-btn active" onclick="selectQuestion(0)">1</button>
+                <button class="q-btn" onclick="selectQuestion(1)">2</button>
+                <button class="q-btn" onclick="selectQuestion(2)">3</button>
+                <button class="q-btn" onclick="selectQuestion(3)">4</button>
+                <button class="q-btn" onclick="selectQuestion(4)">5</button>
+            </div>
+
+            <div>
+                <div class="q-label" id="q-label">Question 1 of 5</div>
+                <div class="q-display" id="q-content">Loading question…</div>
+            </div>
+
+            <div class="answer-space">
+                <textarea class="answer-area" id="answer-input" placeholder="Write your answer here…"></textarea>
+            </div>
+
+            <div class="actions">
+                <button class="action-btn btn-draft" onclick="saveDraft()">
+                    <i class="fas fa-bookmark"></i> Draft & Next
+                </button>
+                <button class="action-btn btn-save" onclick="saveNext()">
+                    <i class="fas fa-check"></i> Save & Next
+                </button>
+                <button class="action-btn btn-submit" onclick="submitTest()">
+                    <i class="fas fa-paper-plane"></i> Submit Test
+                </button>
+            </div>
+        </div>
+
+        <!-- Evaluating loading -->
+        <div class="loading-overlay" id="evaluating-view">
+            <div class="spinner"></div>
+            <p>AI is evaluating your answers…<br>Calculating your score.</p>
+        </div>
+
+        <!-- Results -->
+        <div id="results-view">
+            <div class="score-card">
+                <div class="score-headline">Your Score</div>
+                <div class="score-big" id="res-score">0<span>/50</span></div>
+                <div class="score-meta">
+                    <div class="score-meta-item">
+                        <div class="val" id="res-pct">0%</div>
+                        <div class="lbl">Percentage</div>
+                    </div>
+                    <div class="score-meta-item">
+                        <div class="val" id="res-answered">0</div>
+                        <div class="lbl">Answered</div>
+                    </div>
+                    <div class="score-meta-item">
+                        <div class="val" id="res-skipped">0</div>
+                        <div class="lbl">Skipped</div>
+                    </div>
+                </div>
+                <div class="grade-badge" id="res-grade">–</div>
+            </div>
+
+            <div class="results-grid" id="results-grid"></div>
+
+            <button class="retry-btn" onclick="resetTest()">
+                <i class="fas fa-redo" style="margin-right:8px;"></i> Take Another Test
+            </button>
+        </div>
+    </div>
+
+    <script>
+        let questions = [];
+        let answers   = ["", "", "", "", ""];
+        let currentQ  = 0;
+
+        const fileInput   = document.getElementById('file-input');
+        const uploadView  = document.getElementById('upload-view');
+
+        // Drag-and-drop
+        uploadView.addEventListener('dragover', e => { e.preventDefault(); uploadView.classList.add('dragover'); });
+        uploadView.addEventListener('dragleave', () => uploadView.classList.remove('dragover'));
+        uploadView.addEventListener('drop', e => {
+            e.preventDefault();
+            uploadView.classList.remove('dragover');
+            if (e.dataTransfer.files.length) handleFile(e.dataTransfer.files[0]);
+        });
+        fileInput.addEventListener('change', e => {
+            if (e.target.files.length) handleFile(e.target.files[0]);
+        });
+
+        async function handleFile(file) {
+            if (file.type !== "application/pdf") { alert("Please upload a PDF file."); return; }
+
+            document.getElementById('upload-view').style.display = 'none';
+            document.getElementById('loading-view').style.display = 'flex';
+
+            const formData = new FormData();
+            formData.append("file", file);
+
+            try {
+                const res = await fetch('/api/extract-questions', { method: 'POST', body: formData });
+                if (!res.ok) throw new Error("Failed to extract questions");
+                const data = await res.json();
+                questions = data.questions;
+
+                while (questions.length < 5) questions.push("Bonus: Summarize the document in your own words.");
+                questions = questions.slice(0, 5);
+                answers   = ["", "", "", "", ""];
+
+                startTest();
+            } catch (err) {
+                alert(err.message);
+                document.getElementById('upload-view').style.display = 'flex';
+                document.getElementById('loading-view').style.display = 'none';
+            }
+        }
+
+        function startTest() {
+            document.getElementById('upload-container').style.display = 'none';
+            document.getElementById('test-view').style.display = 'grid';
+            selectQuestion(0);
+        }
+
+        function selectQuestion(index) {
+            answers[currentQ] = document.getElementById('answer-input').value;
+            currentQ = index;
+
+            document.getElementById('q-label').textContent   = `Question ${currentQ + 1} of ${questions.length}`;
+            document.getElementById('q-content').textContent = questions[currentQ];
+            document.getElementById('answer-input').value    = answers[currentQ];
+
+            const btns = document.querySelectorAll('.q-btn');
+            btns.forEach((btn, i) => {
+                btn.classList.toggle('active', i === currentQ);
+            });
+        }
+
+        function saveDraft() {
+            answers[currentQ] = document.getElementById('answer-input').value;
+            if (currentQ < 4) selectQuestion(currentQ + 1);
+            else alert("You have reached the last question. Click 'Submit Test' when ready.");
+        }
+
+        function saveNext() {
+            answers[currentQ] = document.getElementById('answer-input').value;
+            if (answers[currentQ].trim().length > 0) {
+                document.querySelectorAll('.q-btn')[currentQ].classList.add('answered');
+            }
+            if (currentQ < 4) selectQuestion(currentQ + 1);
+            else alert("You are on the last question. Click 'Submit Test' when ready.");
+        }
+
+        async function submitTest() {
+            // Save current
+            answers[currentQ] = document.getElementById('answer-input').value;
+
+            // Mark answered
+            answers.forEach((a, i) => {
+                if (a.trim()) document.querySelectorAll('.q-btn')[i].classList.add('answered');
+            });
+
+            const unanswered = answers.filter(a => !a.trim()).length;
+            if (unanswered > 0) {
+                const go = confirm(`You have ${unanswered} unanswered question(s). Submit anyway?`);
+                if (!go) return;
+            }
+
+            // Show evaluating
+            document.getElementById('test-view').style.display = 'none';
+            document.getElementById('evaluating-view').style.display = 'flex';
+
+            try {
+                const res = await fetch('/api/evaluate-answers', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ questions, answers })
+                });
+                if (!res.ok) throw new Error(await res.text());
+                const data = await res.json();
+                showResults(data);
+            } catch (err) {
+                alert("Evaluation failed: " + err.message);
+                document.getElementById('evaluating-view').style.display = 'none';
+                document.getElementById('test-view').style.display = 'grid';
+            }
+        }
+
+        function showResults(data) {
+            document.getElementById('evaluating-view').style.display = 'none';
+            document.getElementById('results-view').style.display   = 'block';
+
+            // Scoreboard
+            document.getElementById('res-score').innerHTML =
+                `${data.total_marks}<span>/${data.max_total}</span>`;
+            document.getElementById('res-pct').textContent = data.percentage + '%';
+            document.getElementById('res-answered').textContent =
+                answers.filter(a => a.trim()).length;
+            document.getElementById('res-skipped').textContent =
+                answers.filter(a => !a.trim()).length;
+
+            const gradeEl = document.getElementById('res-grade');
+            gradeEl.textContent = data.grade;
+            const safeGrade = data.grade.replace('+', '-plus');
+            gradeEl.className = `grade-badge grade-${safeGrade}`;
+
+            // Per-question cards
+            const grid = document.getElementById('results-grid');
+            grid.innerHTML = '';
+
+            data.results.forEach((r, i) => {
+                const pct    = r.marks / r.max_marks;
+                const cls    = pct >= 0.7 ? 'high' : pct >= 0.4 ? 'mid' : 'low';
+                const barClr = pct >= 0.7 ? '#4ade80' : pct >= 0.4 ? '#fbbf24' : '#f87171';
+                const answerDisplay = r.student_answer.trim()
+                    ? r.student_answer
+                    : '(No answer provided)';
+
+                const card = document.createElement('div');
+                card.className = 'result-card';
+                card.innerHTML = `
+                    <div class="result-card-header">
+                        <div>
+                            <div class="result-q-num">Question ${i + 1}</div>
+                            <div class="result-q-text">${escHtml(r.question)}</div>
+                        </div>
+                        <div class="marks-pill ${cls}">
+                            <span class="marks-num">${r.marks}</span>
+                            <span class="marks-denom">/ ${r.max_marks}</span>
+                        </div>
+                    </div>
+                    <div class="result-answer-label"><i class="fas fa-pen-to-square"></i> Your Answer</div>
+                    <div class="result-answer-text">${escHtml(answerDisplay)}</div>
+                    <div class="result-feedback"><i class="fas fa-comment-dots"></i>${escHtml(r.feedback)}</div>
+                    <div class="progress-bar-wrap">
+                        <div class="progress-bar-fill" style="width:0%;background:${barClr}"
+                             data-width="${pct * 100}%"></div>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+
+            // Animate bars
+            requestAnimationFrame(() => {
+                document.querySelectorAll('.progress-bar-fill').forEach(bar => {
+                    bar.style.width = bar.dataset.width;
+                });
+            });
+        }
+
+        function escHtml(str) {
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;');
+        }
+
+        function resetTest() {
+            questions = [];
+            answers   = ["", "", "", "", ""];
+            currentQ  = 0;
+
+            document.querySelectorAll('.q-btn').forEach(b => {
+                b.classList.remove('answered', 'active');
+            });
+            document.querySelectorAll('.q-btn')[0].classList.add('active');
+
+            document.getElementById('results-view').style.display      = 'none';
+            document.getElementById('upload-container').style.display  = 'block';
+            document.getElementById('upload-view').style.display       = 'flex';
+            document.getElementById('loading-view').style.display      = 'none';
+            document.getElementById('answer-input').value              = '';
+            document.getElementById('results-grid').innerHTML          = '';
+            fileInput.value = '';
+        }
+    </script>
+</body>
+
+</html>

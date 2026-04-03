@@ -140,16 +140,29 @@ Database Schema:
 
 User Question: {query}
 
+Common abbreviations to expand:
+- CSE = Computer Science
+- ECE = Electronics
+- IT = Information Technology  
+- AI/ML = AI/ML or Artificial Intelligence
+- DSA = Data Structures
+
 Rules:
 - Only generate SELECT queries (no INSERT, UPDATE, DELETE)
-- Return ONLY the SQL query, nothing else
-- If you can't generate a valid query, return: SELECT 'Cannot process this query' as message
+- Use LIKE with % wildcards for flexible matching (e.g., category LIKE '%Computer%')
+- Return ONLY the raw SQL query - NO markdown, NO code blocks, NO backticks
+- Do NOT wrap the query in ```sql or any formatting
+- For "show all" type queries, use: SELECT * FROM books
+- If you can't generate a valid query, return: SELECT * FROM books
 
 SQL Query:"""
                 )
                 
                 chain = LLMChain(llm=llm, prompt=sql_prompt)
                 sql_query = chain.run(query=query, schema=schema_str).strip()
+                
+                # Clean up any markdown formatting the AI might have added
+                sql_query = sql_query.replace("```sql", "").replace("```", "").strip()
                 
                 # Execute query
                 try:
@@ -529,67 +542,108 @@ Return ONLY the JSON, nothing else:"""
 # ==================== Complaints Handler ====================
 
 class ComplaintsHandler:
-    """Handles student complaints"""
-    
+    """Handles student complaints with DB integration and portal redirect."""
+
+    PORTAL_URL = "http://localhost:8000/complaints"
+
     def __init__(self):
         self.config = config_manager.get_module_config("complaints")
-    
+
     def reload_config(self):
-        """Reload configuration"""
         self.config = config_manager.get_module_config("complaints")
-    
+
+    def _extract_complaint_id(self, text: str) -> str | None:
+        """Extract a CMP-XXXXXXXX style complaint ID from text."""
+        import re
+        match = re.search(r'\bCMP-[A-F0-9]{8}\b', text.upper())
+        return match.group(0) if match else None
+
     async def handle_query(self, query: str, session_id: str = None) -> Dict[str, Any]:
-        """Handle complaint-related query"""
+        """Handle complaint-related query with smart intent routing."""
         self.reload_config()
-        
         module_def = config_manager.get_module_definition("complaints")
         categories = self.config.get("categories", module_def.get("categories", []))
-        
         query_lower = query.lower()
-        
-        # Check if user wants to file a complaint
-        if any(word in query_lower for word in ["file", "submit", "register", "complain", "complaint"]):
-            category_list = "\n".join([f"- {cat}" for cat in categories])
+
+        # ── SUBMIT INTENT ──────────────────────────────────────────────────────
+        submit_words = ["file", "submit", "register", "raise", "lodge",
+                        "report", "complain", "new complaint"]
+        if any(w in query_lower for w in submit_words):
             return {
-                "answer": f"""📝 **Complaint Registration**
-
-To file a complaint, please specify:
-
-**1. Category:**
-{category_list}
-
-**2. Description:** Describe your issue in detail
-
-**3. Contact:** Your email or phone for follow-up
-
-Example: "I want to file a complaint about Infrastructure - The AC in Room 301 is not working."
-
-Which category does your complaint fall under?
-""",
-                "sources": ["Complaints Module"]
+                "answer": (
+                    "📝 **File a Complaint**\n\n"
+                    "To submit your complaint, please visit our dedicated complaint portal:\n\n"
+                    f"🔗 **[Open Complaint Portal]({self.PORTAL_URL})**\n\n"
+                    "On the portal you can:\n"
+                    "- Describe your issue with photos\n"
+                    "- Share your location automatically\n"
+                    "- Get an instant complaint ID for tracking\n\n"
+                    "Your complaint will be automatically routed to the right department! 🚀"
+                ),
+                "sources": ["Complaints Portal"]
             }
-        
-        # Check complaint status
-        elif any(word in query_lower for word in ["status", "track", "check complaint"]):
+
+        # ── TRACK INTENT ───────────────────────────────────────────────────────
+        track_words = ["status", "track", "where is my", "check complaint", "update"]
+        if any(w in query_lower for w in track_words):
+            cid = self._extract_complaint_id(query)
+            if cid:
+                try:
+                    from complaint_db import get_complaint
+                    record = get_complaint(cid)
+                    if record:
+                        status = record["status"]
+                        status_emoji = {
+                            "Pending": "🟡", "In Progress": "🔵",
+                            "Resolved": "🟢", "Rejected": "🔴"
+                        }.get(status, "⚪")
+                        comments_txt = ""
+                        if record.get("comments"):
+                            last = record["comments"][-1]
+                            comments_txt = f"\n\n💬 **Latest Update:** {last['message']} — _{last['author']}_"
+                        return {
+                            "answer": (
+                                f"📝 **Complaint Status: {cid}**\n\n"
+                                f"{status_emoji} **Status:** {status}\n"
+                                f"🏷️ **Category:** {record.get('category', 'N/A')}\n"
+                                f"🏢 **Department:** {record.get('department', 'N/A')}\n"
+                                f"📅 **Submitted:** {record['created_at'][:10]}\n"
+                                f"📍 **Location:** {record.get('location') or 'Not specified'}"
+                                + comments_txt
+                            ),
+                            "sources": ["Complaints DB"]
+                        }
+                    else:
+                        return {
+                            "answer": f"❌ No complaint found with ID **{cid}**. Please check the ID and try again.",
+                            "sources": ["Complaints DB"]
+                        }
+                except Exception as e:
+                    print(f"[WARN] Complaint DB lookup failed: {e}")
+
             return {
-                "answer": "📝 To check your complaint status, please provide your complaint ID or the email you used when filing.",
-                "sources": ["Complaints Module"]
+                "answer": (
+                    "📝 **Track Your Complaint**\n\n"
+                    f"Please visit the portal to track your complaint:\n"
+                    f"🔗 **[Open Complaint Portal]({self.PORTAL_URL})**\n\n"
+                    "Or share your **Complaint ID** (e.g. CMP-AB12CD34) and I'll look it up for you!"
+                ),
+                "sources": ["Complaints Portal"]
             }
-        
-        # General info
-        else:
-            return {
-                "answer": f"""📝 **Complaints System**
 
-I can help you with:
-- **File a complaint** - Register a new complaint
-- **Check status** - Track your existing complaint
-- **Categories available:** {', '.join(categories)}
-
-How can I help you today?
-""",
-                "sources": ["Complaints Module"]
-            }
+        # ── GENERAL INFO ───────────────────────────────────────────────────────
+        return {
+            "answer": (
+                "📝 **Complaints System**\n\n"
+                f"I can help you file or track complaints.\n\n"
+                f"🔗 **[Open Complaint Portal]({self.PORTAL_URL})**\n\n"
+                f"**Categories:** {', '.join(categories)}\n\n"
+                "What would you like to do?\n"
+                "- **File a new complaint**\n"
+                "- **Track an existing complaint** (share your ID)"
+            ),
+            "sources": ["Complaints Module"]
+        }
 
 
 # ==================== Module Router ====================

@@ -3,7 +3,7 @@ Advanced RAG College Information Chatbot - FastAPI Backend
 Features: Smart chunking, hybrid search, re-ranking, conversation memory
 """
 
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, HTTPException, Form
 from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -12,6 +12,19 @@ import os
 import json
 from datetime import datetime
 import uuid
+from dotenv import load_dotenv
+from langchain_community.document_loaders import PyPDFLoader
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain.prompts import PromptTemplate
+
+# Complaint system
+from complaint_db import (
+    create_complaint, get_complaint, update_complaint_status,
+    add_comment, get_complaints_by_dept, get_all_complaints, get_stats as get_complaint_stats
+)
+from complaint_classifier import classify_complaint
+
+load_dotenv()
 
 # Core RAG components - use the implementations available in ragpipeline.py
 from ragpipeline import (
@@ -120,6 +133,217 @@ async def voice_interface():
         with open("voice_chat.html", "r", encoding="utf-8") as f:
             return f.read()
     return "Voice chat interface not found. Please ensure 'voice_chat.html' is in the root directory."
+
+@app.get("/mock-test", response_class=HTMLResponse)
+async def mock_test_interface():
+    """Serve the mock test interface HTML"""
+    if os.path.exists("mock_test.html"):
+        with open("mock_test.html", "r", encoding="utf-8") as f:
+            return f.read()
+    return "Mock test interface not found. Please ensure 'mock_test.html' is in the root directory."
+
+class ExtractResponse(BaseModel):
+    questions: List[str]
+
+
+class EvaluationItem(BaseModel):
+    question: str
+    student_answer: str
+    marks: int          # 0-10
+    max_marks: int = 10
+    feedback: str       # Short feedback from LLM
+
+
+class EvaluationResponse(BaseModel):
+    results: List[EvaluationItem]
+    total_marks: int
+    max_total: int
+    percentage: float
+    grade: str
+
+
+class EvaluateRequest(BaseModel):
+    questions: List[str]
+    answers: List[str]
+
+
+@app.post("/api/evaluate-answers", response_model=EvaluationResponse)
+async def evaluate_answers_api(request: EvaluateRequest):
+    """Evaluate student answers using LLM and return marks + feedback per question"""
+    if len(request.questions) != len(request.answers):
+        raise HTTPException(status_code=400, detail="Questions and answers count must match")
+
+    api_key = os.getenv('GEMINI_API_KEY')
+    if not api_key:
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY is not set")
+
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-2.5-pro",
+        temperature=0.2,
+        google_api_key=api_key
+    )
+
+    qa_pairs = "\n\n".join([
+        f"Q{i+1}: {q}\nStudent Answer: {a if a.strip() else '[No answer provided]'}"
+        for i, (q, a) in enumerate(zip(request.questions, request.answers))
+    ])
+
+    prompt = PromptTemplate(
+        input_variables=["qa_pairs"],
+        template="""You are a strict but fair teacher evaluating a student's mock test answers.
+For each question-answer pair below, assign marks out of 10 and provide brief feedback (1-2 sentences).
+
+Rules:
+- Award 0 if the answer is blank or completely wrong.
+- Award 1-4 for partial understanding.
+- Award 5-7 for a decent answer missing key details.
+- Award 8-10 for a correct and comprehensive answer.
+
+Return ONLY a valid JSON array (no extra text) in this exact structure:
+[
+  {{"marks": <int 0-10>, "feedback": "<brief feedback>"}},
+  ...
+]
+
+Question-Answer Pairs:
+{qa_pairs}
+"""
+    )
+
+    try:
+        chain = prompt | llm
+        result = chain.invoke({"qa_pairs": qa_pairs})
+        clean = result.content.strip()
+        if clean.startswith("```json"):
+            clean = clean[7:-3].strip()
+        elif clean.startswith("```"):
+            clean = clean[3:-3].strip()
+
+        evaluations = json.loads(clean)
+        if not isinstance(evaluations, list) or len(evaluations) != len(request.questions):
+            raise ValueError("LLM returned unexpected format")
+
+        results = []
+        for i, ev in enumerate(evaluations):
+            marks = max(0, min(10, int(ev.get("marks", 0))))
+            results.append(EvaluationItem(
+                question=request.questions[i],
+                student_answer=request.answers[i],
+                marks=marks,
+                max_marks=10,
+                feedback=ev.get("feedback", "No feedback available.")
+            ))
+
+        total = sum(r.marks for r in results)
+        max_total = len(results) * 10
+        pct = round((total / max_total) * 100, 1) if max_total else 0.0
+
+        if pct >= 90:
+            grade = "A+"
+        elif pct >= 80:
+            grade = "A"
+        elif pct >= 70:
+            grade = "B"
+        elif pct >= 60:
+            grade = "C"
+        elif pct >= 50:
+            grade = "D"
+        else:
+            grade = "F"
+
+        return EvaluationResponse(
+            results=results,
+            total_marks=total,
+            max_total=max_total,
+            percentage=pct,
+            grade=grade
+        )
+
+    except Exception as e:
+        print(f"Error evaluating answers: {e}")
+        raise HTTPException(status_code=500, detail=f"Evaluation failed: {str(e)}")
+
+
+@app.post("/api/extract-questions", response_model=ExtractResponse)
+async def extract_questions_api(file: UploadFile = File(...)):
+    """Extracts 5 random questions from a provided PDF"""
+    if not file.filename.endswith('.pdf'):
+        raise HTTPException(status_code=400, detail="Only PDF files are allowed")
+    
+    # Save file temporarily
+    os.makedirs("temp_uploads", exist_ok=True)
+    temp_path = f"temp_uploads/{uuid.uuid4()}_{file.filename}"
+    
+    with open(temp_path, "wb") as f:
+        f.write(await file.read())
+            
+    try:
+        # Extract text from PDF
+        loader = PyPDFLoader(temp_path)
+        pages = loader.load()
+        full_text = "\n".join([page.page_content for page in pages])
+        
+        # Limit text length just in case it's huge
+        if len(full_text) > 30000:
+            full_text = full_text[:30000]
+            
+        # Use LLM to extract 5 distinct questions
+        api_key = os.getenv('GEMINI_API_KEY')
+        if not api_key:
+            raise ValueError("GEMINI_API_KEY is not set")
+            
+        llm = ChatGoogleGenerativeAI(
+            model="gemini-2.5-pro",
+            temperature=0.7,
+            google_api_key=api_key
+        )
+        
+        prompt = PromptTemplate(
+            input_variables=["text"],
+            template="""You are a teacher creating a mock test. 
+Extract exactly 5 different questions suitable for a practice test from the following text.
+Format the output as a valid JSON list of strings, for example:
+["Question 1?", "Question 2?", "Question 3?", "Question 4?", "Question 5?"]
+Make sure the output is ONLY the JSON array, nothing else.
+
+Text:
+{text}
+"""
+        )
+        
+        chain = prompt | llm
+        result = chain.invoke({"text": full_text})
+        
+        # Clean response
+        clean_result = result.content.strip()
+        if clean_result.startswith("```json"):
+            clean_result = clean_result[7:-3].strip()
+        elif clean_result.startswith("```"):
+            clean_result = clean_result[3:-3].strip()
+            
+        import json
+        questions = json.loads(clean_result)
+        
+        if not isinstance(questions, list) or len(questions) < 5:
+            # Fallback mock questions
+            raise ValueError("LLM did not return 5 questions.")
+            
+        return ExtractResponse(questions=questions[:5])
+        
+    except Exception as e:
+        print(f"Error extracting questions: {e}")
+        # Return fallback questions on failure
+        return ExtractResponse(questions=[
+            "Explain the core concepts discussed in the first section.",
+            "What are the main advantages highlighted in the document?",
+            "Can you summarize the primary methodology described?",
+            "What are some real-world applications of this topic?",
+            "Discuss the concluding remarks matching your understanding."
+        ])
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
 
 
 @app.post("/upload", response_model=UploadResponse)
@@ -337,6 +561,150 @@ async def get_stats():
 async def health():
     """Basic health check endpoint"""
     return {"status": "ok", "version": "1.0.0"}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Complaint Management System Endpoints
+# ─────────────────────────────────────────────────────────────────────────────
+
+COMPLAINT_IMAGE_DIR = "complaint_images"
+os.makedirs(COMPLAINT_IMAGE_DIR, exist_ok=True)
+
+
+class StatusUpdateRequest(BaseModel):
+    status: str  # Pending | In Progress | Resolved | Rejected
+
+
+class CommentRequest(BaseModel):
+    message: str
+    author: Optional[str] = "Student"
+    author_role: Optional[str] = "student"
+
+
+@app.get("/complaints", response_class=HTMLResponse)
+async def complaint_portal():
+    """Serve the student complaint portal HTML"""
+    if os.path.exists("complaint.html"):
+        with open("complaint.html", "r", encoding="utf-8") as f:
+            return f.read()
+    return "Complaint portal not found."
+
+
+@app.get("/staff", response_class=HTMLResponse)
+async def staff_dashboard():
+    """Serve the staff complaints dashboard HTML"""
+    if os.path.exists("staff_dashboard.html"):
+        with open("staff_dashboard.html", "r", encoding="utf-8") as f:
+            return f.read()
+    return "Staff dashboard not found."
+
+
+@app.post("/api/complaints/submit")
+async def submit_complaint(
+    description: str = Form(...),
+    student_name: str = Form(""),
+    student_email: str = Form(""),
+    location: str = Form(""),
+    image: Optional[UploadFile] = File(None),
+):
+    """Submit a new complaint with optional image and location."""
+    image_path = None
+    if image and image.filename:
+        ext = os.path.splitext(image.filename)[1].lower()
+        if ext not in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
+            raise HTTPException(status_code=400, detail="Only image files allowed for attachment.")
+        fname = f"{uuid.uuid4().hex}{ext}"
+        image_path = os.path.join(COMPLAINT_IMAGE_DIR, fname)
+        with open(image_path, "wb") as f:
+            f.write(await image.read())
+
+    category, department, confidence = classify_complaint(description)
+
+    complaint = create_complaint(
+        description=description,
+        category=category,
+        department=department,
+        student_name=student_name,
+        student_email=student_email,
+        location=location,
+        image_path=image_path,
+    )
+
+    print(f"[NOTIFY] New complaint {complaint['complaint_id']} assigned to {department}. Category: {category}.")
+
+    return {
+        **complaint,
+        "confidence": confidence,
+        "notification_sent": True,
+        "message": f"Complaint submitted successfully! Your ID is {complaint['complaint_id']}",
+    }
+
+
+@app.get("/api/complaints/all")
+async def list_all_complaints(status: Optional[str] = None):
+    """Admin: list all complaints with optional status filter."""
+    return get_all_complaints(status)
+
+
+@app.get("/api/complaints/dept/{department}")
+async def list_dept_complaints(department: str):
+    """Staff: list complaints assigned to a department."""
+    return get_complaints_by_dept(department)
+
+
+@app.get("/api/complaints/{complaint_id}")
+async def track_complaint(complaint_id: str):
+    """Track a complaint by ID."""
+    complaint = get_complaint(complaint_id)
+    if not complaint:
+        raise HTTPException(status_code=404, detail="Complaint not found.")
+    return complaint
+
+
+@app.patch("/api/complaints/{complaint_id}/status")
+async def update_status(complaint_id: str, body: StatusUpdateRequest):
+    """Staff/Admin: update complaint status."""
+    ok = update_complaint_status(complaint_id, body.status)
+    if not ok:
+        raise HTTPException(status_code=400, detail="Invalid status or complaint not found.")
+    return {"success": True, "complaint_id": complaint_id, "new_status": body.status}
+
+
+@app.post("/api/complaints/{complaint_id}/comment")
+async def post_comment(
+    complaint_id: str,
+    message: str = Form(...),
+    author: str = Form("Student"),
+    author_role: str = Form("student"),
+    image: Optional[UploadFile] = File(None),
+):
+    """Add a comment to a complaint with optional image."""
+    complaint = get_complaint(complaint_id)
+    if not complaint:
+        raise HTTPException(status_code=404, detail="Complaint not found.")
+
+    image_path = None
+    if image and image.filename:
+        ext = os.path.splitext(image.filename)[1].lower()
+        fname = f"comment_{uuid.uuid4().hex}{ext}"
+        image_path = os.path.join(COMPLAINT_IMAGE_DIR, fname)
+        with open(image_path, "wb") as f:
+            f.write(await image.read())
+
+    comment = add_comment(
+        complaint_id=complaint_id,
+        message=message,
+        author=author,
+        author_role=author_role,
+        image_path=image_path,
+    )
+    return comment
+
+
+@app.get("/api/complaints/stats/overview")
+async def complaint_stats():
+    """Get complaint statistics for admin panel."""
+    return get_complaint_stats()
 
 @app.delete("/clear_memory/{session_id}")
 async def clear_memory(session_id: str):

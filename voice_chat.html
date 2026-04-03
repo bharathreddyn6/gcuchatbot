@@ -732,13 +732,13 @@
                 return;
             }
             if (action === 'Complaint') {
-                setMode('Complaints', 'fas fa-exclamation-circle');
-                addMessage("Entered **Complaints Mode**. I can help you file or track complaints. What would you like to do?", false);
+                // Open the dedicated complaint portal in a new tab
+                window.open('/complaints', '_blank');
+                addMessage("Opening the **Complaint Portal** in a new tab... You can submit or track complaints there! 📝", false);
                 return;
             }
             if (action === 'Mock Test') {
-                setMode('Mock Test', 'fas fa-clipboard-check');
-                addMessage("📝 **Mock Test Mode**\n\nI can generate practice tests for you! Tell me:\n- **Subject** (e.g., DBMS, OS, Networks)\n- **Difficulty** (Easy/Medium/Hard)\n- **Number of questions** (5, 10, 15)\n\nExample: \"Give me 10 medium questions on DBMS\"", false);
+                window.open('/mock-test', '_blank');
                 return;
             }
 

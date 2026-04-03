@@ -106,10 +106,18 @@ def save_library_config(password: str, driver: str, host: str, port: str,
     if not check_password(password):
         return "❌ **Incorrect Password!** Access denied."
     
+    # Handle port - could be empty string, 'None', or actual number
+    port_value = None
+    if port and port.strip() and port.strip().lower() != 'none':
+        try:
+            port_value = int(port.strip())
+        except ValueError:
+            port_value = None
+    
     config = {
         "driver": driver,
         "host": host,
-        "port": int(port) if port else None,
+        "port": port_value,
         "database": database,
         "username": username,
         "password": db_password
@@ -128,10 +136,18 @@ def test_library_connection(password: str, driver: str, host: str, port: str,
     if not check_password(password):
         return "❌ **Incorrect Password!** Access denied."
     
+    # Handle port - could be empty string, 'None', or actual number
+    port_value = None
+    if port and port.strip() and port.strip().lower() != 'none':
+        try:
+            port_value = int(port.strip())
+        except ValueError:
+            port_value = None
+    
     config = {
         "driver": driver,
         "host": host,
-        "port": int(port) if port else None,
+        "port": port_value,
         "database": database,
         "username": username,
         "password": db_password,
@@ -382,6 +398,82 @@ def upload_general_files(password: str, files: List[str]) -> str:
     
     except Exception as e:
         return f"❌ **Error:** {str(e)}\n\nMake sure backend is running at {API_BASE}"
+
+
+# ==================== Complaints Management Functions ====================
+
+def get_all_complaints_admin(password: str, status_filter: str) -> str:
+    """Fetch all complaints for admin view."""
+    if not check_password(password):
+        return "❌ **Incorrect Password!** Access denied."
+    try:
+        params = {}
+        if status_filter and status_filter != "All":
+            params["status"] = status_filter
+        response = requests.get(f"{API_BASE}/api/complaints/all", params=params, timeout=10)
+        if response.status_code != 200:
+            return f"❌ Error fetching complaints: {response.status_code}"
+        data = response.json()
+        if not data:
+            return "📋 No complaints found."
+        lines = ["## 📋 Complaints List\n"]
+        for c in data:
+            lines.append(
+                f"**{c['complaint_id']}** | {c['status']} | {c.get('category','?')} | "
+                f"{c.get('department','?').replace('_',' ')} | {c['created_at'][:10]}\n"
+                f"  → _{c['description'][:120]}..._\n"
+            )
+        return "\n".join(lines)
+    except Exception as e:
+        return f"❌ Error: {str(e)}"
+
+
+def get_complaint_stats_admin(password: str) -> str:
+    """Get complaint statistics."""
+    if not check_password(password):
+        return "❌ **Incorrect Password!** Access denied."
+    try:
+        response = requests.get(f"{API_BASE}/api/complaints/stats/overview", timeout=10)
+        if response.status_code != 200:
+            return f"❌ Error: {response.status_code}"
+        data = response.json()
+        by_status   = data.get('by_status', {})
+        by_category = data.get('by_category', {})
+        status_lines = "\n".join([f"- {k}: **{v}**" for k, v in by_status.items()]) or "_(none)_"
+        cat_lines    = "\n".join([f"- {k}: **{v}**" for k, v in by_category.items()]) or "_(none)_"
+        return f"""## 📊 Complaint Statistics
+
+### By Status
+{status_lines}
+
+### By Category
+{cat_lines}
+
+**Total Complaints:** {data.get('total', 0)}
+"""
+    except Exception as e:
+        return f"❌ Error: {str(e)}"
+
+
+def reassign_complaint_admin(password: str, complaint_id: str, new_dept: str) -> str:
+    """Reassign a complaint to a different department (admin only)."""
+    if not check_password(password):
+        return "❌ **Incorrect Password!** Access denied."
+    if not complaint_id.strip():
+        return "⚠️ Enter a complaint ID."
+    try:
+        # Update status to In Progress as part of reassignment (simple approach)
+        response = requests.patch(
+            f"{API_BASE}/api/complaints/{complaint_id.strip()}/status",
+            json={"status": "In Progress"},
+            timeout=10,
+        )
+        if response.status_code == 200:
+            return f"✅ Complaint **{complaint_id.strip()}** marked as In Progress (reassigned to {new_dept})."
+        else:
+            return f"❌ Error: {response.status_code} {response.text}"
+    except Exception as e:
+        return f"❌ Error: {str(e)}"
 
 
 # ==================== Build Admin Panel ====================
@@ -646,6 +738,56 @@ with gr.Blocks(
                 outputs=[stats_output]
             )
         
+        # Tab 8: Complaints Management
+        with gr.Tab("📋 Complaints Management"):
+            gr.Markdown("""
+            ### 📋 Complaints Management
+            View, filter, and manage all student complaints. Staff can also use the
+            [Staff Dashboard](http://localhost:8000/staff) and students use the
+            [Complaint Portal](http://localhost:8000/complaints).
+            """)
+
+            with gr.Row():
+                comp_mgmt_filter = gr.Dropdown(
+                    choices=["All", "Pending", "In Progress", "Resolved", "Rejected"],
+                    value="All",
+                    label="Filter by Status",
+                    scale=2,
+                )
+                comp_mgmt_fetch_btn = gr.Button("🔄 Fetch Complaints", variant="primary", scale=1)
+                comp_mgmt_stats_btn = gr.Button("📊 Show Stats", scale=1)
+
+            comp_mgmt_output = gr.Markdown()
+
+            gr.Markdown("---")
+            gr.Markdown("### Manual Reassignment / Status Update")
+            with gr.Row():
+                reassign_id    = gr.Textbox(label="Complaint ID", placeholder="CMP-XXXXXXXX", scale=2)
+                reassign_dept  = gr.Dropdown(
+                    choices=["technical_staff", "cleaning_head", "maintenance_team", "IT_support", "admin"],
+                    label="Assign Department",
+                    scale=2,
+                )
+                reassign_btn = gr.Button("🔀 Reassign", scale=1)
+
+            reassign_output = gr.Markdown()
+
+            comp_mgmt_fetch_btn.click(
+                get_all_complaints_admin,
+                inputs=[password_input, comp_mgmt_filter],
+                outputs=[comp_mgmt_output],
+            )
+            comp_mgmt_stats_btn.click(
+                get_complaint_stats_admin,
+                inputs=[password_input],
+                outputs=[comp_mgmt_output],
+            )
+            reassign_btn.click(
+                reassign_complaint_admin,
+                inputs=[password_input, reassign_id, reassign_dept],
+                outputs=[reassign_output],
+            )
+        
         # Tab 8: Help
         with gr.Tab("❓ Help"):
             gr.Markdown("""
@@ -716,13 +858,13 @@ Set up complaint system:
 
 if __name__ == "__main__":
     print("🔐 Starting Modular Admin Panel...")
-    print("🌐 Opening at: http://localhost:7861")
+    print("🌐 Opening at: http://localhost:7862")
     print("🔑 Default Password: admin123 (CHANGE THIS!)")
     print("\n⚠️  Make sure backend is running: python ragmain.py\n")
     
     admin.launch(
         server_name="0.0.0.0",
-        server_port=7861,
+        server_port=7862,
         share=True,
         show_error=True
     )
